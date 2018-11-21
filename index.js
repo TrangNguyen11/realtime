@@ -38,8 +38,9 @@ io.on('connection', function(socket){
   socket.on('ghepban', function(data){
     let {color, thoigian, mangve, nameban, idArr: arrBan} = data;
     let id = !!data.session ? data.session :  uuidv4();
-    session[id]= { ban: arrBan, color, thoigian, nameban };  
-    io.emit('ban',{ id, ban: arrBan, color, nameban });
+    let monan = !!data.session ? session[data.session].monan :  [];
+    session[id]= { ban: arrBan, color, thoigian, nameban, monan };  
+    io.emit('ban',{ id, ban: arrBan, color, nameban, monan });
   });
 
   socket.on('chuyenban', function(data){
@@ -56,9 +57,9 @@ io.on('connection', function(socket){
   });
 
   socket.on('dataDatMon', function(data){
-    let { sessionID, monan, tongtien } = data;
+    let { sessionID, monan, tongtien, nameban } = data;
     let curretState = uuidv4();
-    let monanPush = monan.filter((e)=> e.status === undefined ).map((e)=> ({...e, status: 0, curretState, sessionID }));
+    let monanPush = monan.filter((e)=> e.status === undefined ).map((e)=> ({...e, status: 0, curretState, sessionID, nameban }));
     dataBep = [...monanPush, ...dataBep];
     monan = monan.map((e)=> e.status === undefined? {...e, status: 0, curretState} : e);
     session[sessionID] = {...session[sessionID], tongtien, monan};
@@ -103,7 +104,14 @@ io.on('connection', function(socket){
       !(e.sessionID == sessionID && e.id === id && e.curretState === curretState)
     )
     session[sessionID].monan = session[sessionID].monan.map(
-      (e)=> (e.id === id && e.curretState === curretState)? {...e, status: 4} :e );
+      (e)=> {
+        if(e.id === id && e.curretState === curretState){
+          session[sessionID].tongtien -= e.soluong * e.dongia
+          return {...e, status: 4}
+        }
+        return e
+      });
+       
     io.emit('nauxong', dataBep);
     io.emit('order', {monan: session[sessionID].monan, sessionID});
   }); 
