@@ -27,14 +27,38 @@ app.get('/getMonAnBep', function(req, res){
 });
 
 io.on('connection', function(socket){
+
   socket.on('sudungban', function(data, callback){
+    let {color, thoigian, nameban, idArr: arrBan} = data;
+    let id = uuidv4();
+    session[id]= { ban: arrBan, color, thoigian, nameban };  
+    callback(id);
+    io.emit('ban',{ id, ban: arrBan, color, nameban });
+
+    let result = {...session};
+    Object.keys(result).forEach(key => {
+      if(!!result[key].dathanhtoan) delete result[key]; 
+    })
+
+    io.emit('listthanhtoan',result);
+
+  });
+  socket.on('sudungmangve', function(data, callback){
     let {color, thoigian, mangve, nameban, idArr: arrBan} = data;
     let id = uuidv4();
     session[id]= { ban: arrBan, color, thoigian, mangve, nameban};  
     callback(id);
-    io.emit('ban',{ id, ban: arrBan, color, nameban});
-  });
+    io.emit('mangve',{ id, ban: arrBan, color, nameban, mangve});
 
+    let result = {...session};
+    Object.keys(result).forEach(key => {
+      if(!!result[key].dathanhtoan) delete result[key]; 
+    })
+
+    io.emit('listthanhtoan',result);
+    
+  });
+  
   socket.on('ghepban', function(data){
     let {color, thoigian, mangve, nameban, idArr: arrBan} = data;
     let id = !!data.session ? data.session :  uuidv4();
@@ -50,12 +74,28 @@ io.on('connection', function(socket){
     nameban.push(name);
     nameban = nameban.join(' ');
     session[sessionChuyen].nameban = nameban;
-    session[sessionChuyen].ban  = session[sessionChuyen].ban.filter( e => e !== idChuyen + "");
-    session[sessionChuyen].ban.push(idDen+ "");
-    io.emit('ban',{ id: sessionChuyen, ban: [idDen+ ""], color: session[sessionChuyen].color });
-    io.emit('ban',{ id: undefined, ban: [idChuyen+ ""],  color : 'none', status : false });
+    session[sessionChuyen].ban  = session[sessionChuyen].ban.filter( e => e !== idChuyen+ "");
+    session[sessionChuyen].ban.push(idDen);
+    io.emit('ban',{ id: sessionChuyen, ban: [idDen+""], color: session[sessionChuyen].color });
+    io.emit('ban',{ id: undefined, ban: [idChuyen+ ""],  color : 'none', });
   });
+  socket.on('huyban', function(data, callback){
+    let { idBan, sessionID } = data;
+    if(!session[sessionID].monan) {
+      session[sessionID].dathanhtoan = 1;
+      io.emit('thanhtoanxong', session);
+      io.emit('ban', { id: undefined, ban: session[sessionID].ban, color : 'none' });
+    } 
+    else {
+      if(session[sessionID].ban.length <=1 && session[sessionID].monan.length > 0) callback(false);
+      else {
+        session[sessionID].ban = session[sessionID].ban.filter( e=> e !== idBan);
+        io.emit('ban',{ id: undefined, ban: [idBan+ ""],  color : 'none' });
+        callback(true);
+      }
+    }
 
+  })
   socket.on('dataDatMon', function(data){
     let { sessionID, monan, tongtien, nameban } = data;
     let curretState = uuidv4();
@@ -115,28 +155,15 @@ io.on('connection', function(socket){
     io.emit('nauxong', dataBep);
     io.emit('order', {monan: session[sessionID].monan, sessionID});
   }); 
-  
+
   socket.on('thanhtoan', function(idsession){
     session[idsession].dathanhtoan = 1;
     io.emit('thanhtoanxong', session);
+    if(!!session[idsession].mangve) io.emit('mangve', {id: idsession, dathanhtoan: 1} );
+    else io.emit('ban', { id: undefined, ban: session[idsession].ban, color : 'none' });
   });
-  socket.on('datamangve', function(data){
-    console.log(data);
-    let arrBan = data.tenkhach;
-    let monan =  data.monan;
-    let thoigian = data.thoigian;
-    let status = 11;
-    let id = uuidv4();    
-    session[id]= { ban: arrBan, thoigian, monan};
-    session[id].monan = session[id].monan.map(
-      (e)=> (e.id === id)? {...e, status: 1} :e );
-    dataBep = session[id].monan;
-    io.emit('nauxong', dataBep);
-    io.emit('emangve',session[id]);
-  });
+
 });
-
-
 http.listen(port, function(){
   console.log('listening on *:' + port);
 });
